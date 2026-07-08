@@ -1,0 +1,8 @@
+{
+  "name": "prelegal2",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}
