@@ -49,12 +49,12 @@ export function NdaPdfDocument({ data }: { data: NdaFormData }) {
         <View style={styles.signatureBlock}>
           <View style={styles.signatureColumn}>
             <Text style={styles.signatureLine}>
-              {data.partyAName.trim() || "Party A"} — Signature / Date
+              {data.party_a_name.trim() || "Party A"} — Signature / Date
             </Text>
           </View>
           <View style={styles.signatureColumn}>
             <Text style={styles.signatureLine}>
-              {data.partyBName.trim() || "Party B"} — Signature / Date
+              {data.party_b_name.trim() || "Party B"} — Signature / Date
             </Text>
           </View>
         </View>
