@@ -67,3 +67,7 @@ Thumbs.db
 # --- Logs ---
 *.log
 logs/
+
+# --- SQLite database (recreated fresh on each container start) ---
+*.db
+backend/*.db
