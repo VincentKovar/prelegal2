@@ -20,7 +20,9 @@ When instructed to build a feature:
 
 ## AI design
 
-When writing code to make calls to LLMs, use your Cerebras skill to use LiteLLM via OpenRouter to the `openrouter/openai/gpt-oss-120b` model with Cerebras as the inference provider. You should use Structured Outputs so that you can interpret the results and populate fields in the legal document.
+When writing code to make calls to LLMs, use your Cerebras skill to use LiteLLM via OpenRouter to the `openrouter/openai/gpt-oss-120b:free` model (free-tier variant, diverging from the instructor's paid Cerebras-pinned routing). You should use Structured Outputs so that you can interpret the results and populate fields in the legal document.
+
+Note: the free-tier model does not accept the `reasoning_effort` parameter (OpenRouter raises `litellm.UnsupportedParamsError` if it's passed) and is subject to free-tier rate limits (roughly 20 requests/minute, 200/day, subject to change). `ai_service.py` catches `litellm.exceptions.RateLimitError` and returns a friendly in-chat message rather than a 500 when the limit is hit.
 
 There is an OPENROUTER_API_KEY in the .env file in the project root.
 
@@ -58,6 +60,7 @@ Backend available at http://localhost:8000
 
 - **Completed (PREL-3, 2026-07-10)**: Mutual NDA Creator prototype — Next.js form (`frontend/src/app/NdaForm.tsx`) that fills the mutual-nda template and produces a downloadable PDF.
 - **Completed (PREL-4, 2026-07-10)**: V1 technical foundation, built alongside PREL-3. FastAPI backend (`backend/`, uv-managed) with SQLite database created fresh on container startup, users table with signup/signin, JWT auth, and document persistence routes. Next.js frontend statically exported (`output: "export"`) and served by FastAPI. Whole app packaged into a single Docker image (multi-stage `Dockerfile` + `docker-compose.yml`) exposing the backend at `http://localhost:8000`. Start/stop scripts for Mac, Linux, and Windows in `scripts/`.
+- **Completed (PREL-5, 2026-07-10)**: AI chat interface for mutual NDA creation, replacing manual form entry. `backend/services/ai_service.py` calls the free-tier OpenRouter model via LiteLLM with Structured Outputs (`ChatResponse` Pydantic model) to extract field values from natural conversation and drive `isComplete`. Field requirements are read from `catalog.json`'s mutual-nda entry so the prompt stays in sync with the template. New chat UI (`frontend/src/app/NdaChat.tsx`) shows the conversation alongside a live-updating document preview and a PDF download button once all fields are gathered. Fixed post-launch: the free model rejects the `reasoning_effort` parameter (`litellm.UnsupportedParamsError`) — added `drop_params=True` to the `completion()` call so LiteLLM silently drops unsupported params instead of erroring — and the chat route now logs the real exception server-side (`logger.exception`) instead of only returning `str(e)` to the client.
 
 ### Current API Endpoints
 
