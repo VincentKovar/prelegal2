@@ -1,8 +1,12 @@
 """Chat API routes for AI-powered document creation."""
 
+import logging
+
 from fastapi import APIRouter, HTTPException
 from models.chat import ChatRequest, ChatResponse
 from services.ai_service import get_greeting, process_message
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -27,4 +31,5 @@ async def send_message(request: ChatRequest):
     try:
         return process_message(request.messages)
     except Exception as e:
+        logger.exception("AI service error while processing chat message")
         raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")

@@ -79,6 +79,7 @@ def process_message(messages: list[Message]) -> ChatResponse:
             messages=llm_messages,
             response_format=ChatResponse,
             reasoning_effort="low",
+            drop_params=True,
         )
     except litellm_exceptions.RateLimitError:
         # Free-tier OpenRouter models have low rate limits; surface a friendly message
