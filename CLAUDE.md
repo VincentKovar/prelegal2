@@ -8,7 +8,7 @@ The available documents are covered in the catalog.json file in the project root
 
 @catalog.json
 
-The goal is to support all document types listed in catalog.json via AI chat with full user authentication and document persistence. (Nothing is built yet — see Implementation Status below.)
+The goal is to support all document types listed in catalog.json via AI chat with full user authentication and document persistence. (V1 technical foundation and a first document prototype are built — see Implementation Status below.)
 
 ## Development process
 
@@ -56,11 +56,11 @@ Backend available at http://localhost:8000
 
 ## Implementation Status
 
-Nothing has been built yet. This section should be updated as Jira tickets are completed (e.g. PL-4, PL-5, ...), following the instructor's pattern of a dated "Completed (PL-x)" entry per ticket.
+- **Completed (PREL-3, 2026-07-10)**: Mutual NDA Creator prototype — Next.js form (`frontend/src/app/NdaForm.tsx`) that fills the mutual-nda template and produces a downloadable PDF.
+- **Completed (PREL-4, 2026-07-10)**: V1 technical foundation, built alongside PREL-3. FastAPI backend (`backend/`, uv-managed) with SQLite database created fresh on container startup, users table with signup/signin, JWT auth, and document persistence routes. Next.js frontend statically exported (`output: "export"`) and served by FastAPI. Whole app packaged into a single Docker image (multi-stage `Dockerfile` + `docker-compose.yml`) exposing the backend at `http://localhost:8000`. Start/stop scripts for Mac, Linux, and Windows in `scripts/`.
 
 ### Current API Endpoints
 
-None yet. Expected endpoints, to be added as they're implemented:
 - `POST /api/auth/signup` - Create new user account
 - `POST /api/auth/signin` - Sign in and receive JWT cookie
 - `POST /api/auth/signout` - Clear auth cookie
@@ -72,4 +72,5 @@ None yet. Expected endpoints, to be added as they're implemented:
 - `DELETE /api/documents/{id}` - Delete document (auth required)
 - `GET /api/chat/greeting` - Get AI greeting
 - `POST /api/chat/message` - Send chat message and get AI response
+- `GET /api/catalog` - List available document templates
 - `GET /api/health` - Health check
