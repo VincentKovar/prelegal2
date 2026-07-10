@@ -22,6 +22,11 @@ class ChatRequest(BaseModel):
     """Request body for chat endpoint."""
 
     messages: list[Message]
+    # Once a document type is confirmed, the frontend echoes it back on every
+    # subsequent call so the conversation stays pinned to that type instead of
+    # being re-guessed from the transcript each turn. None while still in
+    # discovery mode (user hasn't picked/been matched to a type yet).
+    documentType: Optional[str] = None
 
 
 class ChatResponse(BaseModel):

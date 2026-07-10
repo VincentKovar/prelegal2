@@ -2,8 +2,8 @@
 
 import { pdf } from "@react-pdf/renderer";
 import { useEffect, useRef, useState } from "react";
-import { buildNdaParagraphs, emptyNdaFormData, NdaFormData } from "@/lib/nda";
-import { NdaPdfDocument } from "@/lib/NdaPdfDocument";
+import { buildFieldSummary, buildTemplateParagraphs } from "@/lib/template";
+import { PdfDocument } from "@/lib/PdfDocument";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -18,27 +18,65 @@ interface ChatResponse {
   isComplete: boolean;
 }
 
-export function NdaChat() {
+interface CatalogField {
+  key: string;
+  label: string;
+  required: boolean;
+}
+
+interface CatalogEntry {
+  id: string;
+  title: string;
+  description: string;
+  fields: CatalogField[];
+}
+
+interface DocumentChatProps {
+  /** Initially selected document type, or null to start in discovery mode. */
+  documentType: string | null;
+  /** Called when the AI confirms/changes the active document type mid-conversation. */
+  onDocumentTypeChange: (documentType: string) => void;
+  catalog: CatalogEntry[];
+}
+
+export function DocumentChat({ documentType, onDocumentTypeChange, catalog }: DocumentChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [fields, setFields] = useState<NdaFormData>(emptyNdaFormData);
+  const [fields, setFields] = useState<Record<string, string>>({});
   const [isComplete, setIsComplete] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [templateBody, setTemplateBody] = useState<string | null>(null);
   const hasGreeted = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const activeEntry = catalog.find((entry) => entry.id === documentType) ?? null;
 
   useEffect(() => {
     if (hasGreeted.current) return;
     hasGreeted.current = true;
 
-    fetch("/api/chat/greeting")
+    const url = documentType
+      ? `/api/chat/greeting?document_type=${encodeURIComponent(documentType)}`
+      : "/api/chat/greeting";
+
+    fetch(url)
       .then((res) => res.json())
       .then((data: ChatResponse) => {
         setMessages([{ role: "assistant", content: data.response }]);
       })
-      .catch(() => setError("Couldn't reach the assistant. Please refresh and try again."));
-  }, []);
+      .catch(() => setError("Couldn't reach the assistant. Please refresh and try again."))
+      .finally(() => inputRef.current?.focus());
+  }, [documentType]);
+
+  useEffect(() => {
+    if (!documentType) return;
+    fetch(`/api/catalog/${encodeURIComponent(documentType)}/template`)
+      .then((res) => res.json())
+      .then((data: { body: string }) => setTemplateBody(data.body))
+      .catch(() => setTemplateBody(null));
+  }, [documentType]);
 
   async function sendMessage(event: React.FormEvent) {
     event.preventDefault();
@@ -55,7 +93,7 @@ export function NdaChat() {
       const res = await fetch("/api/chat/message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: nextMessages }),
+        body: JSON.stringify({ messages: nextMessages, documentType }),
       });
       if (!res.ok) throw new Error("Chat request failed");
       const data: ChatResponse = await res.json();
@@ -63,6 +101,9 @@ export function NdaChat() {
       setMessages((prev) => [...prev, { role: "assistant", content: data.response }]);
       setFields((prev) => ({ ...prev, ...data.fields }));
       setIsComplete(data.isComplete);
+      if (data.documentType && data.documentType !== documentType) {
+        onDocumentTypeChange(data.documentType);
+      }
     } catch {
       setError("Something went wrong talking to the assistant. Please try again.");
     } finally {
@@ -70,14 +111,26 @@ export function NdaChat() {
     }
   }
 
+  // The input is disabled while sending, so focus() only sticks once the
+  // disabled attribute clears on the next render - hence the effect here
+  // rather than calling focus() directly in sendMessage's finally block.
+  useEffect(() => {
+    if (!isSending) inputRef.current?.focus();
+  }, [isSending]);
+
   async function handleDownload() {
+    if (!activeEntry || !templateBody) return;
     setIsDownloading(true);
     try {
-      const blob = await pdf(<NdaPdfDocument data={fields} />).toBlob();
+      const paragraphs = buildTemplateParagraphs(templateBody, fields);
+      const fieldSummary = buildFieldSummary(activeEntry.fields, fields);
+      const blob = await pdf(
+        <PdfDocument title={activeEntry.title} paragraphs={paragraphs} fieldSummary={fieldSummary} />
+      ).toBlob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "mutual-nda.pdf";
+      link.download = `${activeEntry.id}.pdf`;
       link.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -85,7 +138,7 @@ export function NdaChat() {
     }
   }
 
-  const paragraphs = buildNdaParagraphs(fields);
+  const paragraphs = templateBody ? buildTemplateParagraphs(templateBody, fields) : [];
 
   return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
@@ -113,6 +166,7 @@ export function NdaChat() {
 
         <form onSubmit={sendMessage} className="flex gap-2">
           <input
+            ref={inputRef}
             type="text"
             value={input}
             onChange={(event) => setInput(event.target.value)}
@@ -130,7 +184,7 @@ export function NdaChat() {
           </button>
         </form>
 
-        {isComplete && (
+        {isComplete && activeEntry && templateBody && (
           <button
             type="button"
             onClick={handleDownload}
@@ -138,14 +192,14 @@ export function NdaChat() {
             className="rounded px-4 py-2 font-medium text-white disabled:opacity-50"
             style={{ backgroundColor: "#753991" }}
           >
-            {isDownloading ? "Preparing PDF…" : "Download NDA as PDF"}
+            {isDownloading ? "Preparing PDF…" : `Download ${activeEntry.title} as PDF`}
           </button>
         )}
       </div>
 
       <div className="rounded border border-gray-300 bg-white p-6 text-sm text-black dark:border-gray-700">
         <h2 className="mb-4 text-center text-base font-bold" style={{ color: "#032147" }}>
-          MUTUAL NON-DISCLOSURE AGREEMENT
+          {activeEntry ? activeEntry.title.toUpperCase() : "SELECT A DOCUMENT TYPE"}
         </h2>
         {paragraphs.map((paragraph, index) => (
           <p key={index} className="mb-3 text-justify leading-relaxed">
